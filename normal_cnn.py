@@ -108,7 +108,7 @@ if args.gpu >= 0:
     cuda.get_device(args.gpu).use()
     model.to_gpu()
 
-model = L.Classifier(Cifar10Model())
+# model = L.Classifier(Cifar10Model())
 optimizer = chainer.optimizers.Adam()
 optimizer.setup(model)
 
