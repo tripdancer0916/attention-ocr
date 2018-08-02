@@ -127,7 +127,7 @@ for epoch in range(n_epochs):
         y = y_train[perm[i:i + batchsize]]
         if args.gpu >= 0:
             x = cuda.to_gpu(x)
-            t = cuda.to_gpu(y)
+            y = cuda.to_gpu(y)
         x = Variable(x)
         y = Variable(y)
         y_ = model(x)
