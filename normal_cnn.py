@@ -90,7 +90,7 @@ class Cifar10Model(chainer.Chain):
             self.l1 = L.Linear(512, 512)
             self.l2 = L.Linear(512, 10)
 
-    def __call__(self, x, train=True):
+    def __call__(self, x):
         h = F.relu(self.conv1(x))
         h = F.max_pooling_2d(F.relu(self.conv2(h)), 2)
         h = F.relu(self.conv3(h))
@@ -102,7 +102,7 @@ class Cifar10Model(chainer.Chain):
 
 
 model = Cifar10Model()
-model = L.Classifier(model)
+# model = L.Classifier(model)
 # GPU使用のときはGPUにモデルを転送
 if args.gpu >= 0:
     cuda.get_device(args.gpu).use()
