@@ -97,6 +97,7 @@ class Cifar10Model(chainer.Chain):
         h = F.max_pooling_2d(F.relu(self.conv4(h)), 2)
         h = F.relu(self.conv5(h))
         h = F.max_pooling_2d(F.relu(self.conv6(h)), 2)
+        print(h.shape)
         h = F.dropout(F.relu(self.l1(h)))
         return self.l2(h)
 
