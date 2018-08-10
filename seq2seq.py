@@ -38,7 +38,7 @@ class Seq2seq(chainer.Chain):
             ys: Target sentences.
 
         Returns:
-            loss: Cross-entoropy loss between outputs and ys.
+            loss: Cross-entropy loss between outputs and ys.
 
         """
         batch_size = len(xs)

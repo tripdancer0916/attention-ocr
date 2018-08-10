@@ -16,8 +16,12 @@ import matplotlib.pyplot as plt
 import cv2
 import unicodedata
 import json
+from seq2seq import Seq2seq, Decoder, AttentionModule
+from utils import PAD, EOS
+from utils import get_subsequence_before_eos
 
-parser = argparse.ArgumentParser(description='Chainer example: CRNN-CTC')
+
+parser = argparse.ArgumentParser(description='Chainer example: CRNN-attention')
 parser.add_argument('--gpu', '-gpu', default=-1, type=int,
                     help='GPU ID (negative value indicates CPU)')
 
@@ -33,7 +37,7 @@ test_loss = []
 test_acc = []
 N = 2000
 N_test = 3000
-batchsize = 100
+batch_size = 100
 
 
 def str_to_label(x):
@@ -98,7 +102,7 @@ class CRNN(chainer.Chain):
             self.conv5 = L.Convolution2D(64, 128, 3, pad=1)
             self.conv6 = L.Convolution2D(128, 128, 3, pad=1)
             self.rnn = L.NStepBiGRU(2, in_size=512, out_size=512, dropout=0.2)
-            self.embedding = L.Linear(512*2, 63)
+            self.embedding = L.Linear(512 * 2, 63)
 
     def __call__(self, x):
         h = F.relu(self.conv1(x))
@@ -108,7 +112,7 @@ class CRNN(chainer.Chain):
         h = F.relu(self.conv5(h))
         conv_feature = F.max_pooling_2d(F.relu(self.conv6(h)), 2)
         conv_feature = F.transpose(conv_feature, axes=(0, 3, 1, 2))
-        rnn_input = F.reshape(conv_feature, (batchsize, 16, 512))
+        rnn_input = F.reshape(conv_feature, (batch_size, 16, 512))
         rnn_input = F.transpose(rnn_input, (1, 0, 2))
         xs = [rnn_input[i] for i in range(16)]
         _, rnn_output = self.rnn(None, xs)
@@ -116,59 +120,51 @@ class CRNN(chainer.Chain):
         return output
 
 
-model = CRNN()
-if args.gpu >= 0:
-    cuda.get_device(args.gpu).use()
-    model.to_gpu()
+class CRNNAttention(chainer.Chain):
+    def __init__(self, n_target_vocab, n_decoder_units, n_attention_units, n_encoder_units, n_maxout_units):
+        super(CRNNAttention, self).__init__()
+        with self.init_scope():
+            self.crnn = CRNN()
+            self.decoder = Decoder(
+                n_target_vocab,
+                n_decoder_units,
+                n_attention_units,
+                n_encoder_units * 2,  # because of bi-directional lstm
+                n_maxout_units,
+            )
 
-optimizer = chainer.optimizers.Adam()
-optimizer.setup(model)
+    def __call__(self, xs, ys):
+        recurrent_output = self.crnn(xs)
+        output = self.decoder(ys, recurrent_output)
 
-n_epochs = 128
+        concatenated_os = F.concat(output, axis=0)
+        concatenated_ys = F.flatten(ys.T)
+        n_words = len(self.xp.where(concatenated_ys.data != PAD)[0])
 
-for epoch in range(n_epochs):
-    print('epoch', epoch)
-    perm = np.random.permutation(N)
-    sum_accuracy = 0
-    sum_loss = 0
-    for i in range(0, N, batchsize):
-        x = img_train[perm[i:i + batchsize]]
-        y = label_train[perm[i:i + batchsize]]
-        padded_y = np.zeros((batchsize, max([len(t) for t in y])))
-        for index, item in enumerate(y):
-            padded_y[index, :len(item)] = item
-        x = Variable(xp.asarray(x).astype(xp.float32))
-        output = model(x)
-        print(output[0].shape)
-        print(output[0][0])
-        model.cleargrads()
-        loss = F.connectionist_temporal_classification(output,
-                                                       xp.asarray(padded_y).astype(xp.int32),
-                                                       0,
-                                                       xp.full((len(y),), 63, dtype=xp.int32),
-                                                       xp.asarray([len(t) for t in y]).astype(xp.int32))
-        loss.backward()
-        optimizer.update()
-        print(loss.data)
-    """
-    print('train mean loss={}, accuracy={}'.format(
-        sum_loss / N, sum_accuracy / N))
+        loss = F.sum(
+            F.softmax_cross_entropy(
+                concatenated_os, concatenated_ys, reduce='no', ignore_label=PAD
+            )
+        )
+        loss = loss / n_words
+        chainer.report({'loss': loss.data}, self)
+        perp = self.xp.exp(loss.data * batch_size / n_words)
+        chainer.report({'perp': perp}, self)
 
-    # evaluation
-    with configuration.using_config('train', False):
-        sum_accuracy = 0
-        sum_loss = 0
-        for i in range(0, N_test, batchsize):
-            x = x_test[i:i + batchsize]
-            y = y_test[i:i + batchsize]
-            if args.gpu >= 0:
-                x = cuda.to_gpu(x)
-                y = cuda.to_gpu(y)
-            y_ = model(x)
-            loss, acc = F.softmax_cross_entropy(y_, y), F.accuracy(y_, y)
-            sum_loss += float(cuda.to_cpu(loss.data)) * batchsize
-            sum_accuracy += float(cuda.to_cpu(acc.data)) * batchsize
+        return loss
 
-        print('test  mean loss={}, accuracy={}'.format(
-            sum_loss / N_test, sum_accuracy / N_test))
-"""
+    def translate(self, xs, max_length=100):
+        """Generate sentences based on xs.
+
+        Args:
+            xs: Source sentences.
+
+        Returns:
+            ys: Generated target sentences.
+
+        """
+        with chainer.no_backprop_mode(), chainer.using_config('train', False):
+            hxs = self.crnn(xs)
+            ys = self.decoder.translate(hxs, max_length)
+        return ys
+
