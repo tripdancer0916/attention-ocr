@@ -44,7 +44,8 @@ def str_to_label(x):
     CLASSES = list('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
     label = []
     for char in x:
-        label.append(CLASSES.index(char))
+        # label.append(CLASSES.index(char))
+        label.append(np.identity(len(CLASSES))[CLASSES.index(char)])
     return label
 
 
@@ -89,6 +90,8 @@ img_test = img_test.transpose([0, 3, 1, 2])
 
 train = chainer.datasets.TupleDataset(img_train, label_train)
 test = chainer.datasets.TupleDataset(img_test, label_test)
+
+# print(label_train[0])
 
 
 class CRNN(chainer.Chain):
@@ -167,4 +170,13 @@ class CRNNAttention(chainer.Chain):
             hxs = self.crnn(xs)
             ys = self.decoder.translate(hxs, max_length)
         return ys
+
+
+model = CRNNAttention(63, 256, 256, 1024, 256)
+if args.gpu >= 0:
+    cuda.get_device(args.gpu).use()
+    model.to_gpu()
+
+optimizer = chainer.optimizers.Adam()
+optimizer.setup(model)
 

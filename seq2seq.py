@@ -145,7 +145,7 @@ class Decoder(chainer.Chain):
         self.n_units = n_units
 
     def __call__(self, ys, hxs):
-        """Calculate cross-entoropy loss between predictions and ys.
+        """Calculate cross-entropy loss between predictions and ys.
 
         Args:
             ys: Target sequences.
