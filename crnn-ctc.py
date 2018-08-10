@@ -31,9 +31,9 @@ train_loss = []
 train_acc = []
 test_loss = []
 test_acc = []
-N = 50000
-N_test = 10000
-batch_size = 100
+N = 2000
+N_test = 3000
+batchsize = 100
 
 
 def str_to_label(x):
@@ -79,14 +79,15 @@ img_test = img_test / 255.
 label_train = np.array(label_train)
 label_test = np.array(label_test)
 img_train = img_train.astype(np.float32)
+img_train = img_train.transpose([0, 3, 1, 2])
 img_test = img_test.astype(np.float32)
+img_test = img_test.transpose([0, 3, 1, 2])
 
 train = chainer.datasets.TupleDataset(img_train, label_train)
 test = chainer.datasets.TupleDataset(img_test, label_test)
 
-# 畳み込み６層
-class CRNN(chainer.Chain):
 
+class CRNN(chainer.Chain):
     def __init__(self):
         super(CRNN, self).__init__()
         with self.init_scope():
@@ -107,20 +108,15 @@ class CRNN(chainer.Chain):
         h = F.relu(self.conv5(h))
         conv_feature = F.max_pooling_2d(F.relu(self.conv6(h)), 2)
         conv_feature = F.transpose(conv_feature, axes=(0, 3, 1, 2))
-        rnn_input = F.reshape(conv_feature, (batch_size, 16, 512))
+        rnn_input = F.reshape(conv_feature, (batchsize, 16, 512))
         rnn_input = F.transpose(rnn_input, (1, 0, 2))
         xs = [rnn_input[i] for i in range(16)]
         _, rnn_output = self.rnn(None, xs)
-        T, b, h = rnn_output.data.shape
-        t_rec = F.reshape(rnn_output, (T * b, h))
-        output = self.embedding(t_rec)
-        output = F.reshape(output, (T, b, -1))
+        output = [self.embedding(rnn_output[i]) for i in range(16)]
         return output
 
 
 model = CRNN()
-# model = L.Classifier(model)
-# GPU使用のときはGPUにモデルを転送
 if args.gpu >= 0:
     cuda.get_device(args.gpu).use()
     model.to_gpu()
@@ -128,15 +124,16 @@ if args.gpu >= 0:
 optimizer = chainer.optimizers.Adam()
 optimizer.setup(model)
 
-n_epochs = 10
-batchsize = 100
-x = img_test[:batch_size].transpose(0, 3, 1, 2)
-x = Variable(x)
-pred = model.__call__(x)
-print(pred.shape)
+n_epochs = 128
+# x = img_test[:batch_size]
+# x = Variable(x)
+# pred = model.__call__(x)
+# print(len(pred))
+# print(pred[0].shape)
+# print(img_test.shape)
+# print(label_train.shape)
+# print(label_train[:2])
 
-
-"""
 for epoch in range(n_epochs):
     print('epoch', epoch)
 
@@ -145,22 +142,30 @@ for epoch in range(n_epochs):
     sum_accuracy = 0
     sum_loss = 0
     for i in range(0, N, batchsize):
-        x = x_train[perm[i:i + batchsize]]
-        y = y_train[perm[i:i + batchsize]]
-        if args.gpu >= 0:
-            x = cuda.to_gpu(x)
-            y = cuda.to_gpu(y)
+        x = img_train[perm[i:i + batchsize]]
+        y = label_train[perm[i:i + batchsize]]
+        # print(y.shape)
+        padded_y = xp.zeros((batchsize, max([len(t) for t in y])))
+        for index, item in enumerate(y):
+            padded_y[index, :len(item)] = item
+        print(padded_y.shape)
+        print(padded_y[0])
+        print(y[0])
+
         x = Variable(x)
-        y = Variable(y)
-        y_ = model(x)
+        output = model(x)
         model.cleargrads()
-        loss, acc = F.softmax_cross_entropy(y_, y), F.accuracy(y_, y)
+        loss = F.connectionist_temporal_classification(output,
+                                                       xp.asarray(padded_y).astype(xp.int32),
+                                                       0,
+                                                       xp.full((len(y),), 62, dtype=xp.int32),
+                                                       xp.asarray([len(t) for t in y]).astype(xp.int32))
         loss.backward()
         optimizer.update()
-        sum_loss += float(cuda.to_cpu(loss.data)) * batchsize
-        sum_accuracy += float(cuda.to_cpu(acc.data)) * batchsize
-        del loss
-
+        # sum_loss += float(cuda.to_cpu(loss.data)) * batchsize
+        # sum_accuracy += float(cuda.to_cpu(acc.data)) * batchsize
+        # del loss
+    """
     print('train mean loss={}, accuracy={}'.format(
         sum_loss / N, sum_accuracy / N))
 
