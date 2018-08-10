@@ -157,7 +157,7 @@ for epoch in range(n_epochs):
         loss = F.connectionist_temporal_classification(output,
                                                        xp.asarray(padded_y).astype(xp.int32),
                                                        0,
-                                                       xp.full((len(y),), 62, dtype=xp.int32),
+                                                       xp.full((len(y),), 63, dtype=xp.int32),
                                                        xp.asarray([len(t) for t in y]).astype(xp.int32))
         loss.backward()
         optimizer.update()
