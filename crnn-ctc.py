@@ -151,7 +151,7 @@ for epoch in range(n_epochs):
         # print(padded_y.shape)
         # print(padded_y[0])
         # print(y[0])
-        x = Variable(x)
+        x = Variable(xp.asarray(x).astype(xp.float32))
         output = model(x)
         model.cleargrads()
         loss = F.connectionist_temporal_classification(output,
