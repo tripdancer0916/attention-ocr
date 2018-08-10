@@ -98,7 +98,7 @@ class CRNN(chainer.Chain):
             self.conv5 = L.Convolution2D(64, 128, 3, pad=1)
             self.conv6 = L.Convolution2D(128, 128, 3, pad=1)
             self.rnn = L.NStepBiGRU(2, in_size=512, out_size=512, dropout=0.2)
-            self.embedding = L.Linear(512 * 2, 62)
+            self.embedding = L.Linear(512 * 2, 63)
 
     def __call__(self, x):
         h = F.relu(self.conv1(x))
@@ -153,6 +153,8 @@ for epoch in range(n_epochs):
         # print(y[0])
         x = Variable(xp.asarray(x).astype(xp.float32))
         output = model(x)
+        print(output[0].shape)
+        print(output[0][0])
         model.cleargrads()
         loss = F.connectionist_temporal_classification(output,
                                                        xp.asarray(padded_y).astype(xp.int32),
