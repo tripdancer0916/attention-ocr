@@ -27,21 +27,19 @@ class SimpleEncoderDecoder(chainer.Chain):
             trg_vocab_size,
             embed_size,
             hidden_size):
-        super(SimpleEncoderDecoder, self).__init__()
-        with self.init_scope():
+        super(SimpleEncoderDecoder, self).__init__(
             # Encoder
-            self.x_i = L.EmbedID(src_vocab_size, embed_size),
-            self.i_p = L.Linear(embed_size, 4 * hidden_size, nobias=True),
-            self.p_p = L.Linear(hidden_size, 4 * hidden_size),
+            x_i=L.EmbedID(src_vocab_size, embed_size),
+            i_p=L.Linear(embed_size, 4 * hidden_size, nobias=True),
+            p_p=L.Linear(hidden_size, 4 * hidden_size),
             # Decoder initializer
-            self.pc_qc = L.Linear(hidden_size, hidden_size),
-            self.p_q = L.Linear(hidden_size, hidden_size),
+            pc_qc=L.Linear(hidden_size, hidden_size),
+            p_q=L.Linear(hidden_size, hidden_size),
             # Decoder
-            self.y_j = L.EmbedID(trg_vocab_size, embed_size),
-            self.j_q = L.Linear(embed_size, 4 * hidden_size, nobias=True),
-            self.q_q = L.Linear(hidden_size, 4 * hidden_size),
-            self.q_z = L.Linear(hidden_size, trg_vocab_size)
-
+            y_j=L.EmbedID(trg_vocab_size, embed_size),
+            j_q=L.Linear(embed_size, 4 * hidden_size, nobias=True),
+            q_q=L.Linear(hidden_size, 4 * hidden_size),
+            q_z=L.Linear(hidden_size, trg_vocab_size))
         self.src_vocab_size = src_vocab_size
         self.trg_vocab_size = trg_vocab_size
         self.embed_size = embed_size
