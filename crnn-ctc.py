@@ -148,9 +148,9 @@ for epoch in range(n_epochs):
         padded_y = xp.zeros((batchsize, max([len(t) for t in y])))
         for index, item in enumerate(y):
             padded_y[index, :len(item)] = item
-        print(padded_y.shape)
-        print(padded_y[0])
-        print(y[0])
+        # print(padded_y.shape)
+        # print(padded_y[0])
+        # print(y[0])
 
         x = Variable(x)
         output = model(x)
@@ -162,6 +162,7 @@ for epoch in range(n_epochs):
                                                        xp.asarray([len(t) for t in y]).astype(xp.int32))
         loss.backward()
         optimizer.update()
+        print(loss.data)
         # sum_loss += float(cuda.to_cpu(loss.data)) * batchsize
         # sum_accuracy += float(cuda.to_cpu(acc.data)) * batchsize
         # del loss
