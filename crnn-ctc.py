@@ -145,13 +145,12 @@ for epoch in range(n_epochs):
         x = img_train[perm[i:i + batchsize]]
         y = label_train[perm[i:i + batchsize]]
         # print(y.shape)
-        padded_y = xp.zeros((batchsize, max([len(t) for t in y])))
+        padded_y = np.zeros((batchsize, max([len(t) for t in y])))
         for index, item in enumerate(y):
             padded_y[index, :len(item)] = item
         # print(padded_y.shape)
         # print(padded_y[0])
         # print(y[0])
-
         x = Variable(x)
         output = model(x)
         model.cleargrads()
