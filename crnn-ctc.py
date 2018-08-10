@@ -40,7 +40,6 @@ def str_to_label(x):
     CLASSES = list('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789')
     label = []
     for char in x:
-        # label.append(np.identity(len(CLASSES))[CLASSES.index(char)])
         label.append(CLASSES.index(char))
     return label
 
@@ -48,7 +47,6 @@ def str_to_label(x):
 img_train = []
 label_train = []
 train_imgs = os.listdir('./IIIT5K/train')
-# print(train_imgs)
 for i in range(len(train_imgs)):
     if train_imgs[i][-1] == 'g':
         train_img = cv2.imread('./IIIT5K/train/' + train_imgs[i])
@@ -58,13 +56,11 @@ for i in range(len(train_imgs)):
         with open(json_file_path, 'r') as f:
             answer_string = unicodedata.normalize('NFKC', json.load(f)[u'answer']).strip()
         label = str_to_label(answer_string)
-        # print(answer_string, label)
         label_train.append(label)
 
 img_test = []
 label_test = []
 test_imgs = os.listdir('./IIIT5K/test')
-# print(train_imgs)
 for i in range(len(test_imgs)):
     if test_imgs[i][-1] == 'g':
         test_img = cv2.imread('./IIIT5K/test/' + test_imgs[i])
@@ -74,44 +70,34 @@ for i in range(len(test_imgs)):
         with open(json_file_path, 'r') as f:
             answer_string = unicodedata.normalize('NFKC', json.load(f)[u'answer']).strip()
         label = str_to_label(answer_string)
-        # print(answer_string, label)
         label_test.append(label)
-
 
 img_train = np.array(img_train)
 img_test = np.array(img_test)
-# print(img_train)
-img_train = img_train/255.
-img_test = img_test/255.
+img_train = img_train / 255.
+img_test = img_test / 255.
 label_train = np.array(label_train)
 label_test = np.array(label_test)
 img_train = img_train.astype(np.float32)
 img_test = img_test.astype(np.float32)
-print(label_train)
-label_train = label_train.astype(np.int32)
-label_test = label_test.astype(np.int32)
 
 train = chainer.datasets.TupleDataset(img_train, label_train)
 test = chainer.datasets.TupleDataset(img_test, label_test)
 
-print(img_train.shape)
-print(label_train.shape)
-
-"""
 # 畳み込み６層
-class Cifar10Model(chainer.Chain):
+class CRNN(chainer.Chain):
 
     def __init__(self):
-        super(Cifar10Model, self).__init__()
+        super(CRNN, self).__init__()
         with self.init_scope():
             self.conv1 = L.Convolution2D(3, 32, 3, pad=1)
             self.conv2 = L.Convolution2D(32, 32, 3, pad=1)
             self.conv3 = L.Convolution2D(32, 32, 3, pad=1)
-            self.conv4 = L.Convolution2D(32, 32, 3, pad=1)
-            self.conv5 = L.Convolution2D(32, 32, 3, pad=1)
-            self.conv6 = L.Convolution2D(32, 32, 3, pad=1)
-            self.l1 = L.Linear(512, 512)
-            self.l2 = L.Linear(512, 10)
+            self.conv4 = L.Convolution2D(32, 64, 3, pad=1)
+            self.conv5 = L.Convolution2D(64, 128, 3, pad=1)
+            self.conv6 = L.Convolution2D(128, 128, 3, pad=1)
+            self.rnn = L.NStepBiGRU(2, in_size=512, out_size=512, dropout=0.2)
+            self.embedding = L.Linear(512 * 2, 62)
 
     def __call__(self, x):
         h = F.relu(self.conv1(x))
@@ -119,26 +105,38 @@ class Cifar10Model(chainer.Chain):
         h = F.relu(self.conv3(h))
         h = F.max_pooling_2d(F.relu(self.conv4(h)), 2)
         h = F.relu(self.conv5(h))
-        h = F.max_pooling_2d(F.relu(self.conv6(h)), 2)
-        print(h.shape)
-        h = F.dropout(F.relu(self.l1(h)))
-        return self.l2(h)
+        conv_feature = F.max_pooling_2d(F.relu(self.conv6(h)), 2)
+        conv_feature = F.transpose(conv_feature, axes=(0, 3, 1, 2))
+        rnn_input = F.reshape(conv_feature, (batch_size, 16, 512))
+        rnn_input = F.transpose(rnn_input, (1, 0, 2))
+        xs = [rnn_input[i] for i in range(16)]
+        _, rnn_output = self.rnn(None, xs)
+        T, b, h = rnn_output.data.shape
+        t_rec = F.reshape(rnn_output, (T * b, h))
+        output = self.embedding(t_rec)
+        output = F.reshape(output, (T, b, -1))
+        return output
 
 
-model = Cifar10Model()
+model = CRNN()
 # model = L.Classifier(model)
 # GPU使用のときはGPUにモデルを転送
 if args.gpu >= 0:
     cuda.get_device(args.gpu).use()
     model.to_gpu()
 
-# model = L.Classifier(Cifar10Model())
 optimizer = chainer.optimizers.Adam()
 optimizer.setup(model)
 
 n_epochs = 10
 batchsize = 100
+x = img_test[:batch_size].transpose(0, 3, 1, 2)
+x = Variable(x)
+pred = model.__call__(x)
+print(pred.shape)
 
+
+"""
 for epoch in range(n_epochs):
     print('epoch', epoch)
 
